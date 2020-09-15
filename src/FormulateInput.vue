@@ -247,6 +247,11 @@ export default {
     addLabel: {
       type: [Boolean, String],
       default: false
+    },
+    updateProps: {
+      type: Boolean,
+      required: false,
+      default: true
     }
   },
   data () {
@@ -315,6 +320,11 @@ export default {
         this.$emit('error-visibility', val)
       },
       immediate: true
+    },
+    value (newValue, oldValue) {
+      if (!shallowEqualObjects(newValue, oldValue) && this.updateProps) {
+        this.proxy = newValue
+      }
     }
   },
   created () {
