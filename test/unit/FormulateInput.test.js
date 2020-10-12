@@ -814,4 +814,47 @@ describe('FormulateInput', () => {
     await flushPromises()
     expect(wrapper.find('.formulate-errors').exists()).toBe(false)
   })
+
+  it('allows access to attributes attrs in classes context object', async () => {
+    const localVue = createLocalVue()
+    localVue.use(Formulate, {
+      classes: {
+        input: (context, classes) => context.attrs.disabled ? classes.concat(['is-disabled']) : classes
+      }
+    })
+    const wrapper = mount(FormulateInput, { localVue, propsData: {
+      type: 'button',
+      disabled: 'true'
+    } })
+    await flushPromises()
+    expect(wrapper.find('button.is-disabled').exists()).toBe(true)
+    resetInstance()
+  })
+
+  it('allows custom slotProps for custom inputs', async () => {
+    const localVue = createLocalVue()
+    localVue.component('MyCustomInput', {
+      functional: true,
+      render: (h, { props }) => h('button', { class: 'my-custom-input' }, props.customInputProp)
+    })
+    localVue.use(Formulate, {
+      library: {
+        'my-input': {
+          classification: 'text',
+          component: 'MyCustomInput'
+        }
+      },
+      slotProps: {
+        component: ['customInputProp']
+      }
+    })
+
+    const wrapper = mount(FormulateInput, { localVue, propsData: {
+      type: 'my-input',
+      customInputProp: 'foo-bar'
+    } })
+    await flushPromises()
+    expect(wrapper.find('button.my-custom-input').text()).toBe('foo-bar')
+    resetInstance()
+  })
 })

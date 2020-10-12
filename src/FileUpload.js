@@ -1,4 +1,5 @@
 import nanoid from 'nanoid/non-secure'
+import { setId } from './libs/utils'
 
 /**
  * The file upload class holds and represents a file’s upload state durring
@@ -17,6 +18,7 @@ class FileUpload {
     this.options = { ...{ mimes: {} }, ...options }
     this.results = false
     this.context = context
+    this.uploadPromise = null
     if (Array.isArray(this.fileList)) {
       this.rehydrateFileList(this.fileList)
     } else {
@@ -42,8 +44,8 @@ class FileUpload {
       } : {}))
       return fileList
     }, [])
-    this.results = items
     this.addFileList(fauxFileList)
+    this.results = this.mapUUID(items)
   }
 
   /**
@@ -127,14 +129,16 @@ class FileUpload {
    * Perform the file upload.
    */
   upload () {
-    if (this.results) {
-      return Promise.resolve(this.results)
+    if (this.uploadPromise) {
+      return this.uploadPromise
     }
-    return new Promise((resolve, reject) => {
+    this.uploadPromise = new Promise((resolve, reject) => {
       if (!this.hasUploader) {
         return reject(new Error('No uploader has been defined'))
       }
       Promise.all(this.files.map(file => {
+        file.error = false
+        file.complete = !!file.path
         return file.path ? Promise.resolve(file.path) : this.getUploader(
           file.file,
           (progress) => {
@@ -151,16 +155,19 @@ class FileUpload {
             file.progress = 0
             file.error = error
             file.complete = true
+            this.uploadPromise = null
+            reject(error)
           },
           this.options
         )
       }))
         .then(results => {
-          this.results = results
+          this.results = this.mapUUID(results)
           resolve(results)
         })
         .catch(err => { throw new Error(err) })
     })
+    return this.uploadPromise
   }
 
   /**
@@ -169,12 +176,15 @@ class FileUpload {
    */
   removeFile (uuid) {
     this.files = this.files.filter(file => file.uuid !== uuid)
+    this.results = this.results.filter(file => file.__id !== uuid)
     this.context.performValidation()
     if (window && this.fileList instanceof FileList) {
       const transfer = new DataTransfer()
       this.files.map(file => transfer.items.add(file.file))
       this.fileList = transfer.files
       this.input.files = this.fileList
+    } else {
+      this.fileList = this.fileList.filter(file => file.__id !== uuid)
     }
   }
 
@@ -203,6 +213,14 @@ class FileUpload {
    */
   getFiles () {
     return this.files
+  }
+
+  /**
+   * Run setId on each item of a pre-existing array of items.
+   * @param {array} items expects an array of objects [{ url: '/uploads/file.pdf' }]
+   */
+  mapUUID (items) {
+    return items.map((result, index) => setId(result, this.files[index].uuid))
   }
 
   toString () {
